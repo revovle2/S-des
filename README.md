@@ -4,7 +4,10 @@
 程序的GUI如下图所示：
 ![image](https://github.com/revovle2/S-des/assets/93172576/72dde28a-2d71-43e3-8350-7e7b7209df05)     
 图1:加解密的主GUI
-
+<div style="text-align:center;">
+  <img src="https://github.com/revovle2/S-des/assets/93172576/72dde28a-2d71-43e3-8350-7e7b7209df05" alt="GitHub Logo">
+  <p style="text-align:center;">图1: 这是图的描述。</p>
+</div>
 
 
 
