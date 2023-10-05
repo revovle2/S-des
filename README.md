@@ -137,6 +137,669 @@
 关卡五，通过！测试完美结束！
 
 ## 开发手册
+#### 1、算法简介
+
+​	S-DES是一个供教学而非安全使用的加密算法，与DES的特性和结构类似，但它参数小，明文分组为8位，主密钥为10位，采用两轮迭代。它主要包括两个部分：密钥生成和数据的加密解密。
+
+##### 1.1 密钥生成：
+
+​	将10位密钥扩展成两个8位子密钥。
+$$
+密钥扩展算法：k_i=P_8(Shift^i(P_{10}(K))),(i=1,2)
+$$
+
+##### 1.2 数据加密解密：
+
+​	将数据通过一系列变换加密成密文，或者使用逆变换解密成明文。
+$$
+加密算法：C=IP^{-1}(f_{k_2}(SW)(f_{k_1}(IP(P))))
+$$
+
+$$
+解密算法：P=IP^{-1}(f_{k_1}(SW(f_{k_2})(IP(C))))
+$$
+
+##### 1.3 拓展功能
+
+​	本项目在原有S-DES算法基础上，支持对任意位数二进制明密文的加密解	密，以及对字符串类型（包括汉字）密文的加密解密功能。
+​	另外增加了暴力破解功能，针对已知的明密文对遍历所有的密钥空间，搜	索到满足将密文解密成明文的所有密钥。
+
+#### 2、详细介绍
+
+##### 2.1 基本功能模块
+
+```` java
+/*********************************1、密钥扩展置换*************************************/
+//***P10
+static String P10(String Key) {
+    char[] key = Key.toCharArray(); // 转换成数组
+    char[] new_key = {key[2], key[4], key[1], key[6], key[3], key[9], key[0], key[8], key[7], key[5]};
+    return String.valueOf(new_key);
+}
+
+//***P8
+static String P8(String Key) {
+    char[] key = Key.toCharArray(); // 转换成数组
+    char[] new_key = {key[5], key[2], key[6], key[3], key[7], key[4], key[9], key[8]};
+    return java.lang.String.valueOf(new_key);
+}
+
+//***shift
+static String leftShift(String Key) {
+    String k1 = Key.substring(0, 5);
+    String k2 = Key.substring(5, 10);
+    String keyL = k1.substring(1) + k1.substring(0, 1);
+    String keyR = k2.substring(1) + k2.substring(0, 1);
+    return keyL + keyR;
+}
+
+//密钥扩展 得到 K1
+static String key_expansion1(String Key) {
+    return P8(leftShift(P10(Key)));
+}
+
+//密钥扩展 得到 K2	注：此处的k2扩展函数与网上的略有区别
+static String key_expansion2(String Key) {
+    return P8(leftShift(leftShift(P10(Key))));
+}
+
+/***********************************2、轮函数**************************************/
+//初始置换盒
+//***IP
+static String IP(String Text) {
+    char[] text = Text.toCharArray();
+    char[] new_text = {text[1], text[5], text[2], text[0], text[3], text[7], text[4], text[6]};
+    return java.lang.String.valueOf(new_text);
+}
+
+//最终置换盒
+//***IP_1  最终置换
+static String IP_1(String Text) {
+    char[] text = Text.toCharArray();
+    char[] new_text = {text[3], text[0], text[2], text[4], text[6], text[1], text[7], text[5]};
+    return java.lang.String.valueOf(new_text);
+}
+
+//轮函数
+//EPBox
+static String EPBox(String Text) {
+    char[] text = Text.toCharArray();
+    char[] new_text = {text[3], text[0], text[1], text[2], text[1], text[2], text[3], text[0]};
+    return java.lang.String.valueOf(new_text);
+}
+//SBox1
+static int[][] SBox1 = {{1, 0, 3, 2}, {3, 2, 1, 0}, {0, 2, 1, 3}, {3, 1, 0, 2}};
+//SBox2		注：此处的SBox2与网上的略有区别
+static int[][] SBox2 = {{0, 1, 2, 3}, {2, 3, 1, 0}, {3, 0, 1, 2}, {2, 1, 0, 3}};
+//SPBox
+static String SPBox(String Text) {
+    char[] text = Text.toCharArray();
+    char[] new_text = {text[1], text[3], text[2], text[0]};
+    return java.lang.String.valueOf(new_text);
+}
+
+//其他函数
+//异或
+static String XOR(String str1, String str2) {
+    String res = "";
+    for (int i = 0; i < str1.length(); i++) {
+        if (str1.charAt(i) == str2.charAt(i)) {
+            res += '0';
+        } else {
+            res += '1';
+        }
+    }
+    return res;
+}
+//将字符串表示的二进制转换为数字
+static int transferToNumber(String str) {
+    switch (str) {
+        case "00":
+            return 0;
+        case "01":
+            return 1;
+        case "10":
+            return 2;
+        default:
+            return 3;
+    }
+}
+
+//将数字转换为字符串表示的二进制
+static String transferToString(int num) {
+    switch (num) {
+        case 0:
+            return "00";
+        case 1:
+            return "01";
+        case 2:
+            return "10";
+        default:
+            return "11";
+    }
+}
+
+//替换
+static String substitution(String Text) {
+    String a = Text.substring(0, 1) + Text.substring(3, 4);
+    String b = Text.substring(1, 3);
+    String c = Text.substring(4, 5) + Text.substring(7, 8);
+    String d = Text.substring(5, 7);
+    int x = SBox1[transferToNumber(a)][transferToNumber(b)];
+    int y = SBox2[transferToNumber(c)][transferToNumber(d)];
+    return transferToString(x) + transferToString(y);
+}
+
+static String TextL;    //文本左边部分
+static String TextR;    //文本右边部分
+
+//***F1
+static String F1(String Key1) {
+    return XOR(TextL, SPBox(substitution(XOR(EPBox(TextR), Key1))));
+}
+
+//***SW
+static void SW(String textL) {
+    TextL = TextR;
+    TextR = textL;
+}
+
+//***F2
+static String F2(String Key2) {
+    return XOR(TextL, SPBox(substitution(XOR(EPBox(TextR), Key2))));
+}
+````
+
+
+
+##### 2.2 加密解密算法
+
+​	基本的加密、解密功能，输入八位二进制文本和十位密钥，返回对应的明文或密文。
+
+```` java
+//加密算法
+static String encrypt(String plainText, String key) {
+    String Key1 = key_expansion1(key);          //生成子密钥
+    String Key2 = key_expansion2(key);
+
+    TextL = IP(plainText).substring(0, 4);
+    TextR = IP(plainText).substring(4, 8);
+    String textl = F1(Key1);
+    SW(textl);
+    return IP_1(F2(Key2) + TextR);
+}
+
+//解密算法
+static String decode(String cipherText, String key) {
+    String Key1 = key_expansion1(key);          //生成子密钥
+    String Key2 = key_expansion2(key);
+
+    TextL = IP(cipherText).substring(0, 4);
+    TextR = IP(cipherText).substring(4, 8);
+    String textl = F2(Key2);
+    SW(textl);
+    return IP_1(F1(Key1) + TextR);
+}
+````
+
+​	拓展的加密解密算法。在原来加密解密的基础上，对于**不同长度的二进制文本**，对其右补零（不影响左边的值）使其字符长度达到八的倍数，然后对每一个八比特分组进行加密或者解密，最后将所有的明密文分组整合，返回完整的明密文字符串。
+​	对于**不同长度的字符串文本**（针对字母、各种符号、空格和汉字而言），若字符串中**不包含汉字字符**，将每一个字符转换成**八位**二进制表示，进行加密解密，然后将处理过的二进制转化成字符形式，最后输出；若字符串中**包含汉字**，将每一个字符转换成**十六位**二进制表示，然后分别对前八位和后八位进行加密解密，之后转换成二进制形式输出。
+
+````  java
+//加密字符串
+static String encryptString(String plainText, String key) 
+{
+    String ciphertext = "";                       //密文
+    String binaryText = "";                       //单个字符的二进制表示
+    String cipherBinaryText = "";                 //加密后的二进制字符串
+    String plainBinaryType = "[0*1*]*[1*0*]*";    //二进制类型的明文
+
+    //如果明文是二进制类型
+    if (plainText.matches(plainBinaryType)) 
+    {
+        while ((plainText.length() % 8) != 0)//不是8的整数，右补零
+        {       
+            plainText = plainText + "0";
+        }
+        for (int i = 0; i < plainText.length() / 8; i++) 
+        {
+            ciphertext += encrypt(plainText.substring(0 + 8 * i, 8 + 8 * i), key);
+        }
+    }
+    //如果明文是字符串类型
+    else 
+    {
+        char[] strChar = plainText.toCharArray();     //将字符串表示为二进制字符串,对每一个二进制字符串加密
+        if (isContainChinese(plainText)) 
+        {
+            for (int i = 0; i < strChar.length; i++) 
+            {
+                binaryText = Integer.toBinaryString(strChar[i]);
+                while (binaryText.length() < 16) 
+                {
+                    binaryText = "0" + binaryText;      //小于16位，左补0
+            	}
+                //将加密后的二进制字符串转换成字符，然后拼接成明文
+                cipherBinaryText = encrypt(binaryText.substring(0, 8), key) + encrypt(binaryText.substring(8, 16), key);
+                ciphertext += Character.toString((char) Integer.parseInt(cipherBinaryText, 2));
+            }
+        }
+        else 
+        {
+            for (int i = 0; i < strChar.length; i++) 
+            {
+                binaryText = Integer.toBinaryString(strChar[i]);
+                while (binaryText.length() < 8) 
+                {
+                    binaryText = "0" + binaryText;      //小于8位，左补0
+            	}
+                //将加密后的二进制字符串转换成字符，然后拼接成明文
+                cipherBinaryText = encrypt(binaryText, key);
+              ciphertext+=Character.toString((char)Integer.parseInt(cipherBinaryText, 2));
+            }
+        }
+    }
+    return ciphertext;
+}
+
+//解密字符串
+static String decodeString(String cipherText, String key) 
+{
+    String plaintext = "";                        //明文
+    String binaryText = "";                       //单个字符的二进制表示
+    String plainBinaryText = "";                  //解密后的二进制字符串
+    String cipherBinaryType = "[0*1*]*[1*0*]*";   //二进制类型的密文
+
+    //如果密文是二进制类型
+    if (cipherText.matches(cipherBinaryType)) 
+    {
+        while ((cipherText.length() % 8) != 0) //不是8的整数，右补零
+        {       
+            cipherText = cipherText + "0";
+        }
+        for (int i = 0; i < cipherText.length() / 8; i++) 
+        {
+            plaintext += decode(cipherText.substring(0 + 8 * i, 8 + 8 * i), key);
+        }
+    }
+    //如果密文是字符串类型
+    else {
+        char[] strChar = cipherText.toCharArray();     //将字符串表示为二进制字符串,对每一个二进制字符串解密
+        if (isMoreThan15bits(cipherText)) 
+        {
+            for (int i = 0; i < strChar.length; i++) 
+            {
+                binaryText = Integer.toBinaryString(strChar[i]);
+                while (binaryText.length() < 16) 
+                {
+                    binaryText = "0" + binaryText;      //小于16位，左补0
+              	}
+                //将解密后的二进制字符串转换成字符
+                plainBinaryText = decode(binaryText.substring(0, 8), key) + decode(binaryText.substring(8, 16), key);
+                plaintext += Character.toString((char) Integer.parseInt(plainBinaryText, 2));
+            }
+        } 
+        else 
+        {
+            for (int i = 0; i < strChar.length; i++) 
+            {
+                binaryText = Integer.toBinaryString(strChar[i]);
+                while (binaryText.length() < 8) 
+                {
+                    binaryText = "0" + binaryText;      //小于8位，左补0
+                }
+                //将解密后的二进制字符串转换成字符
+                plainBinaryText = decode(binaryText, key);
+                plaintext += Character.toString((char) Integer.parseInt(plainBinaryText, 2));
+            }
+        }
+    }
+    return plaintext;
+}
+````
+
+##### 2.3 暴力破解算法
+
+​	对于输入的明密文对，遍历10比特密钥空间，输出每一个满足将密文解密成明文的密钥以及搜索到该密钥的时间。可以发现，对于同一个明密文对，可能存在多个不同的密钥与之对应。
+
+```` java
+//暴力破解
+    static void bruteForceAttack(String ciphertext, String plainText) {
+        String theKey = "";                         //遍历密钥
+        String cipherType1 = "[0*1*]*[1*0*]*";      //二进制数组成的密文
+        Date date = new Date();                     //显示时间
+        int num = 0;								//密钥个数
+        if (ciphertext.matches(cipherType1)) //如果 密文是二进制数
+        {
+            //如果二进制明文长度小于密文长度，右补零
+            while (plainText.length() < ciphertext.length()) {
+                plainText = plainText + "0";
+            }
+			//遍历所有的十位二进制数
+            for (int i = 0; i < 1024; i++) {
+                theKey = Integer.toBinaryString(i);
+                while (theKey.length() < 10) {               //不够10位向左补0
+                    theKey = "0" + theKey;
+                }
+                if (decodeString(ciphertext, theKey).equals(plainText)) 
+                {
+                    num++;
+                    System.out.println(date.toString() + ":第" + num + "个密钥：" + theKey);
+                }
+            }
+        } 
+        else  //如果密文是字符串
+        {    
+            //遍历所有的二进制数
+            for (int i = 0; i < 1024; i++) {
+                theKey = Integer.toBinaryString(i);
+                while (theKey.length() < 10) {               //不够10位向左补0
+                    theKey = "0" + theKey;
+                }
+                if (decodeString(ciphertext, theKey).equals(plainText)) {
+                    num++;
+                    System.out.println(date.toString() + ":第" + num + "个密钥：" + theKey);
+                }
+            }
+        }
+    }
+````
+
+##### 2.4 GUI与用户交互
+
+###### 2.4.1 主页面
+
+```` java
+import javax.swing.*;
+import javax.swing.border.Border;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Random;
+
+public class UI  {
+    public static void main(String[] args) {
+        JFrame frame = new JFrame("S-DES加密解密工具");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(800, 600);
+        centerWindow(frame);
+        frame.setLayout(new BorderLayout(50, 20));
+        JPanel jp=new JPanel();
+
+        JPanel inputPanel = new JPanel(new GridLayout(3, 2, 15, 20));
+        inputPanel.setBorder(BorderFactory.createTitledBorder("输入"));
+        JLabel plaintextLabel = new JLabel("在此输入你要加密的明文或要解密的密文:");
+        JTextField plaintextField = new JTextField();
+        JLabel keyLabel = new JLabel("密钥 (10位二进制):");
+        JTextField keyField = new JTextField();
+        JButton random=new JButton("生成随机密钥");
+
+
+
+        inputPanel.add(plaintextLabel);
+        inputPanel.add(plaintextField);
+        inputPanel.add(keyLabel);
+        inputPanel.add(keyField);
+        inputPanel.add(random);
+
+        JPanel resultPanel = new JPanel(new GridLayout(3,2,15,20));
+        resultPanel.setBorder(BorderFactory.createTitledBorder("结果"));
+        JLabel resultLabel = new JLabel("密文:");
+        JTextField encry_text=new JTextField();
+        JLabel resultLabel2 = new JLabel("明文:");
+        JTextField decry_text=new JTextField();
+        JLabel message=new JLabel("");
+        JLabel famous=new JLabel("                                            @design by B5 513");
+        resultPanel.add(resultLabel);
+        resultPanel.add(encry_text);
+        resultPanel.add(resultLabel2);
+        resultPanel.add(decry_text);
+        resultPanel.add(message);
+        resultPanel.add(famous);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        JButton encryptButton = new JButton("加密");
+        JButton decryptButton = new JButton("解密");
+        JButton bruteForceButton = new JButton("暴力破解");
+        buttonPanel.add(encryptButton);
+        buttonPanel.add(decryptButton);
+        buttonPanel.add(bruteForceButton);
+
+        frame.add(inputPanel, BorderLayout.NORTH);
+        frame.add(resultPanel, BorderLayout.CENTER);
+        frame.add(buttonPanel, BorderLayout.SOUTH);
+
+        //字体部分
+        Font font = new Font("微软雅黑", Font.PLAIN, 16);
+        plaintextLabel.setFont(font);
+        keyLabel.setFont(font);
+        encryptButton.setFont(font);
+        decryptButton.setFont(font);
+        bruteForceButton.setFont(font);
+        resultLabel.setFont(font);
+        plaintextField.setFont(font);
+        keyField.setFont(font);
+        resultLabel2.setFont(font);
+        message.setFont(font);
+        encry_text.setFont(font);
+        decry_text.setFont(font);
+        famous.setFont(new Font("宋体",font.PLAIN,10));
+
+        random.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Random random=new Random();
+                int temp= random.nextInt(1024);//生成一个0-1024的随机数
+                String key=Integer.toBinaryString(temp);
+                while (key.length()<10){
+                    key="0"+key;
+                }
+                keyField.setText(key);
+            }
+        });
+
+        encryptButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // 实现S-DES加密的代码
+                if (plaintextField.getText().trim().equals("")){
+                    message.setText("<html><font color='red'>请输入明文!</font> </html>");
+
+                } else if (keyField.getText().trim().equals("")) {
+                    message.setText("<html><font color='red'>请输入密钥!</font> </html>");
+
+                } else {
+                    String plaintext = plaintextField.getText();
+                    String key = keyField.getText();
+                    String ciphertext = performSDESEncryption(plaintext, key);
+                    // resultLabel.setText("<html><font color='green'>加密结果:</font> " + ciphertext + "</html>");
+                    encry_text.setText("加密结果:" + ciphertext);
+                }
+            }
+        });
+
+        decryptButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // 实现S-DES解密的代码
+                String ciphertext = plaintextField.getText();
+                String key = keyField.getText();
+                String plaintext = performSDESDecryption(ciphertext, key);
+
+                decry_text.setText("解密结果:" + plaintext );
+            }
+        });
+        bruteForceButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                violent_decrypt violentui=new violent_decrypt();
+                violentui.setVisible(true);
+            }
+        });
+
+        frame.setVisible(true);
+    }
+
+    // 设置窗口位置为屏幕中央
+    private static void centerWindow(JFrame frame) {
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        int screenWidth = (int) screenSize.getWidth();
+        int screenHeight = (int) screenSize.getHeight();
+
+        int frameWidth = frame.getWidth();
+        int frameHeight = frame.getHeight();
+
+        int x = (screenWidth - frameWidth) / 2;
+        int y = (screenHeight - frameHeight) / 2;
+
+        frame.setLocation(x, y);
+    }
+
+    // 在这里添加S-DES加密逻辑
+    private static String performSDESEncryption(String plaintext, String key) {
+        // 实现S-DES加密的代码
+        String ciphertext = SDES.encryptString(plaintext,key);
+        return ciphertext;
+    }
+
+    // 在这里添加S-DES解密逻辑
+    private static String performSDESDecryption(String ciphertext, String key) {
+        // 实现S-DES解密的代码
+        String plaintext = SDES.decodeString(ciphertext,key);
+        return plaintext;
+    }
+
+}
+
+````
+
+###### 2.4.2 暴力破解页面
+
+```` java
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.Date;
+
+public class violent_decrypt extends JFrame{
+    JFrame window1=new JFrame("暴力破解");
+    JLabel lb1=new JLabel("");
+    JLabel lb2=new JLabel("");
+    JLabel lb3=new JLabel("");
+    JLabel lb4=new JLabel("");
+    JTextField plain_field=new JTextField();
+    JTextField encry_field=new JTextField();
+    JTextArea result=new JTextArea();
+    JButton bt1=new JButton("开始破解");
+
+    public violent_decrypt() {
+        setVisible(true);
+        VioInit();
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    }
+    public void VioInit(){
+        this.setTitle("暴力破解");
+        this.setSize(800,600);
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        int screenWidth = (int) screenSize.getWidth();
+        int screenHeight = (int) screenSize.getHeight();
+
+        int frameWidth = this.getWidth();
+        int frameHeight = this.getHeight();
+
+        int x = (screenWidth - frameWidth) / 2;
+        int y = (screenHeight - frameHeight) / 2;
+        this.setLocation(x,y);
+        JPanel jp =new JPanel(null);
+        this.add(jp);
+
+        lb1.setText("请输入明文:");
+        lb2.setText("请输入密文:");
+        lb3.setText("破解结果:");
+        lb4.setText("");
+
+        lb1.setBounds(100,50,100,50);
+        lb2.setBounds(100,100,100,50);
+        lb3.setBounds(100,150,100,50);
+        lb4.setBounds(300,150,100,50);
+        plain_field.setBounds(200,60,300,30);
+        encry_field.setBounds(200,120,300,30);
+        result.setBounds(100,200,500,350);
+        bt1.setBounds(600,80,100,30);
+
+        jp.add(lb1);
+        jp.add(lb2);
+        jp.add(lb3);
+        jp.add(lb4);
+        jp.add(plain_field);
+        jp.add(encry_field);
+        jp.add(result);
+        jp.add(bt1);
+
+        bt1.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e)
+            {
+                if(plain_field.getText().trim().equals("")){
+                    lb4.setText("<html><font color='red'>请输入明文 !</font> </html>");
+                }
+                else if(encry_field.getText().trim().equals("")){
+                    lb4.setText("<html><font color='red'>请输入密文 !</font> </html>");
+                }
+                else
+                {
+                        String plain=plain_field.getText();
+                        String cipher=encry_field.getText();
+
+                        String theKey="";                           //遍历密钥
+                        String cipherType1="[0*1*]*[1*0*]*";        //二进制数组成的密文
+                        Date date = new Date();                     //显示时间
+
+                        int num=0;
+                        if (cipher.matches(cipherType1)) //如果 密文是二进制数
+                        {
+                            while(plain.length()<cipher.length()){
+                                plain=plain+"0";
+                            }
+
+                            for(int i=0;i<1024;i++) {
+                                theKey = Integer.toBinaryString(i);
+                                while (theKey.length() < 10) {               //不够10位向左补0
+                                    theKey = "0" + theKey;
+                                }
+
+                                if (SDES.decodeString(cipher, theKey).equals(plain)) {
+                                    num++;
+                                    result.append(date.toString()+":第" + num + "个密钥：" + theKey+"\n");
+                                }
+                            }
+                        }
+                        else{                                //如果密文是字符串
+                            for(int i=0;i<1024;i++) {
+                                theKey = Integer.toBinaryString(i);
+                                while (theKey.length() < 10) {               //不够10位向左补0
+                                    theKey = "0" + theKey;
+                                }
+                                if (SDES.decodeString(cipher, theKey).equals(plain)) {
+                                    num++;
+                                    result.append(date.toString()+":第" + num + "个密钥：" + theKey+"\n");
+                                }
+                            }
+                        }
+                        if(num==0){
+                            result.append("出错，未找到密钥!\n");
+                        }
+                    }
+            }
+        });
+    }
+    public static void main(String[] args) {
+        violent_decrypt violentui=new violent_decrypt();
+    }
+}
+
+````
 
 
 
