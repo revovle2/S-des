@@ -88,6 +88,18 @@
 
 <p align="center">图11 解密密文得到cqu</p>
 
+此外，本程序提供了汉族明文加解密功能：
+
+![image](https://github.com/revovle2/S-des/assets/93172576/317c8eff-58e4-4581-b9e7-c508d686847f)
+<p align="center">图11.1 加密 重庆大学</p>
+
+![image](https://github.com/revovle2/S-des/assets/93172576/14131b90-49f8-4c3f-8b5f-3f2bb597fc16)
+<p align="center">图11.2 解密 重庆大学</p>
+
+
+
+
+
 第三关通过！
 
 #### 第四关 暴力破解
