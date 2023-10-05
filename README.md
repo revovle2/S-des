@@ -88,7 +88,7 @@
 
 <p align="center">图11 解密密文得到cqu</p>
 
-此外，本程序提供了汉族明文加解密功能：
+此外，本程序提供了汉字明文加解密功能：
 
 ![image](https://github.com/revovle2/S-des/assets/93172576/317c8eff-58e4-4581-b9e7-c508d686847f)
 <p align="center">图11.1 加密 重庆大学</p>
